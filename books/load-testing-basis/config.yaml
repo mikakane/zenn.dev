@@ -4,14 +4,18 @@ topics: [] # トピック（5つまで）
 published: false # falseだと下書き
 price: 0 # 有料の場合200〜5000
 chapters:
-  - 2-1.bd
-  - 2-2.tool
-  - 2-3.target
-  - 2-4.performance
-  - 2-5.context
-  - 3-1.dd
-  - 3-2.scenario
-  - 3-3.testing
-  - 9-1.xx-lv-design
+  - 2-1_bd
+  - 2-2_tool
+  - 2-3_target
+  - 2-4_performance
+  - 2-5_context
+  - 3-1_dd
+  - 3-2_scenario
+  - 3-3_testing
+  - 9-1_xx-lv-design
+
+
+
+
 
 

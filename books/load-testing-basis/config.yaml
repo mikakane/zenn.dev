@@ -4,6 +4,7 @@ topics: [] # トピック（5つまで）
 published: true # falseだと下書き
 price: 0 # 有料の場合200〜5000
 chapters:
+  - 1_intro
   - 2-1_bd
   - 2-2_tool
   - 2-3_target
@@ -12,7 +13,7 @@ chapters:
   - 3-1_dd
   - 3-2_scenario
   - 3-3_testing
-  - 9-1_xx-lv-design
+  # - 9-1_xx-lv-design
 
 
 

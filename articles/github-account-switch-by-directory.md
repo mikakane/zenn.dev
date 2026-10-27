@@ -60,11 +60,15 @@ Gitリポジトリを除外フォルダに配置するだけで、HTTPS認証ア
 
 ## 2. 初回セットアップ
 
+:::message
+2章ではデフォルトアカウントでの認証と認証ヘルパーの準備までを行い、除外フォルダは設定しません。除外フォルダは3章の手順で追加します。
+:::
+
 ### 2-1. 前提条件
 
 - Gitがインストールされている。
 - GitHub CLI（`gh`）がインストールされている。
-- GitHub CLIにデフォルト用・仕事用の両アカウントが登録されている。
+- 使用するGitHubアカウントがすべて GitHub CLI にログイン済みである。
 
 ログイン状態を確認します。
 
@@ -77,14 +81,6 @@ gh auth status
 ```bash
 gh auth login --git-protocol https
 ```
-
-仕事用アカウントのトークンが取得できることを確認します。
-
-```bash
-gh auth token --hostname github.com --user work-user > /dev/null
-```
-
-`work-user` は実際のGitHubユーザー名に置き換えてください。
 
 ### 2-2. 認証ヘルパースクリプトの作成
 
@@ -128,7 +124,7 @@ EOF
 chmod 700 ~/.local/bin/git-gh-credential
 ```
 
-このスクリプトは、Gitから認証情報を要求された際に、第1引数で指定されたGitHubアカウントのトークンを返します。
+このスクリプトは、Gitから認証情報を要求された際に、第1引数で指定されたGitHubアカウントのトークンを返します。3章で除外フォルダを追加するときに使います。
 
 ### 2-3. デフォルトのGit設定
 
@@ -142,32 +138,43 @@ chmod 700 ~/.local/bin/git-gh-credential
 [credential "https://github.com"]
     helper =
     helper = !gh auth git-credential
-
-[includeIf "gitdir:~/projects/work/"]
-    path = ~/.gitconfig-work
 ```
 
 | 設定 | 説明 |
 |---|---|
 | `[user]` | デフォルトのコミット作成者 |
 | `credential.helper` | デフォルトのGitHub HTTPS認証 |
-| `includeIf` | 除外フォルダ配下で追加設定を読み込む |
-
-`includeIf` のパスは、実際の除外フォルダに合わせて変更してください。
 
 :::message
 既存の `~/.gitconfig` にCredential Helperの設定がある場合、重複や競合を避けるため設定を確認してください。デフォルトの認証が正常に動作している場合は、既存のCredential Helperをそのまま維持しても構いません。
 :::
 
-### 2-4. 除外フォルダ用のGit設定
+### 2-4. 動作確認
 
-`~/.gitconfig-work` を作成します。
+任意のリポジトリで、デフォルトのコミット作成者と認証設定が適用されていることを確認します。
 
 ```bash
-touch ~/.gitconfig-work
+cd ~/projects/app-a
+
+git config --get user.email
+git config --show-origin --get-all credential.https://github.com.helper
 ```
 
-以下を記述します。
+## 3. 除外フォルダの追加
+
+別のアカウントを使うフォルダを追加する手順です。最初の除外フォルダも、2つ目以降もこの章の手順で追加します。
+
+除外フォルダで使うアカウントが、すでに作成済みの設定ファイル（例：`~/.gitconfig-work`）と同じアカウントであれば、3-1を飛ばして3-2に進みます。
+
+### 3-1. アカウント用の設定ファイルを作成する
+
+除外フォルダで使うアカウントのトークンが取得できることを確認します。
+
+```bash
+gh auth token --hostname github.com --user work-user > /dev/null
+```
+
+アカウント用の設定ファイル（ここでは `~/.gitconfig-work`）を作成し、以下を記述します。
 
 ```ini:~/.gitconfig-work
 [user]
@@ -183,25 +190,41 @@ touch ~/.gitconfig-work
 
 | 項目 | 設定値 |
 |---|---|
-| `Work User` | 仕事用のコミット作成者名 |
-| `work@example.com` | 仕事用メールアドレス |
+| `Work User` | 除外フォルダ用のコミット作成者名 |
+| `work@example.com` | 除外フォルダ用のメールアドレス |
 | `YOUR_MAC_USER` | Macのログインユーザー名（`whoami` で確認） |
-| `work-user` | 仕事用GitHubユーザー名 |
+| `work-user` | 除外フォルダで使うGitHubユーザー名 |
 
-最初の空の `helper =` は、それ以前に登録されたCredential Helperをリセットします。2行目で仕事用アカウント専用のヘルパーを登録します。これにより、デフォルトの認証設定を除外フォルダ内だけで上書きできます。
+最初の空の `helper =` は、それ以前に登録されたCredential Helperをリセットします。2行目でこのアカウント専用のヘルパーを登録します。これにより、デフォルトの認証設定を除外フォルダ内だけで上書きできます。
 
-### 2-5. 動作確認
+アカウントを増やす場合は、`~/.gitconfig-other` のようにアカウントごとに設定ファイルを分けます。認証ヘルパースクリプトは共通のものを使い、引数のアカウント名だけを変えます。
 
-デフォルトディレクトリで、デフォルトのコミット作成者と認証設定が適用されていることを確認します。
+### 3-2. includeIf を追加する
 
-```bash
-cd ~/projects/app-a
+`~/.gitconfig` に `includeIf` を追加し、除外フォルダ配下で 3-1 の設定ファイルを読み込むようにします。
 
-git config --get user.email
-git config --show-origin --get-all credential.helper
+```ini:~/.gitconfig
+[includeIf "gitdir:~/projects/work/"]
+    path = ~/.gitconfig-work
 ```
 
-除外フォルダで、仕事用の設定が読み込まれていることを確認します。
+同じアカウントを別のフォルダでも使う場合は、同じ設定ファイルを指す `includeIf` を追加するだけです。
+
+```ini:~/.gitconfig
+[includeIf "gitdir:~/projects/work/"]
+    path = ~/.gitconfig-work
+
+[includeIf "gitdir:~/projects/client-x/"]
+    path = ~/.gitconfig-work
+```
+
+:::message
+`gitdir:` のパスは末尾を `/` にしてください。末尾が `/` の場合は配下すべてのリポジトリが対象になります（`gitdir:~/projects/work/**` と同じ扱い）。
+:::
+
+### 3-3. 動作確認
+
+除外フォルダ配下のリポジトリで、除外フォルダ用の設定が読み込まれていることを確認します。
 
 ```bash
 cd ~/projects/work/app-c
@@ -224,73 +247,10 @@ printf 'protocol=https\nhost=github.com\n\n' \
 username=work-user
 ```
 
-最後に `git push` を実行し、仕事用アカウントの権限で正常にpushできることを確認します。
+最後に `git push` を実行し、除外フォルダ用アカウントの権限で正常にpushできることを確認します。
 
 ```bash
 git push
-```
-
-## 3. 除外フォルダの追加
-
-初回セットアップ後に、別のアカウントを使うフォルダを増やす手順です。
-
-### 3-1. 既存アカウントを使うフォルダを追加する
-
-同じ仕事用アカウントを別のディレクトリでも使う場合は、`~/.gitconfig` に `includeIf` を追加するだけです。
-
-```ini:~/.gitconfig
-[includeIf "gitdir:~/projects/work/"]
-    path = ~/.gitconfig-work
-
-[includeIf "gitdir:~/projects/client-x/"]
-    path = ~/.gitconfig-work
-```
-
-:::message
-`gitdir:` のパスは末尾を `/` にしてください。末尾が `/` の場合は配下すべてのリポジトリが対象になります（`gitdir:~/projects/work/**` と同じ扱い）。
-:::
-
-### 3-2. 別のアカウントを使うフォルダを追加する
-
-3つ目以降のアカウントを使う場合は、アカウントごとに設定ファイルを分けます。
-
-まずGitHub CLIにアカウントを追加し、トークンが取得できることを確認します。
-
-```bash
-gh auth login --git-protocol https
-gh auth token --hostname github.com --user other-user > /dev/null
-```
-
-`~/.gitconfig-other` を作成します。認証ヘルパースクリプトは共通のものを使い、引数のアカウント名だけを変えます。
-
-```ini:~/.gitconfig-other
-[user]
-    name = Other User
-    email = other@example.com
-
-[credential "https://github.com"]
-    helper =
-    helper = "!/Users/YOUR_MAC_USER/.local/bin/git-gh-credential other-user"
-```
-
-`~/.gitconfig` に `includeIf` を追加します。
-
-```ini:~/.gitconfig
-[includeIf "gitdir:~/projects/oss/"]
-    path = ~/.gitconfig-other
-```
-
-### 3-3. 追加後の確認
-
-追加したフォルダ配下のリポジトリで、「2-5. 動作確認」 と同じコマンドを実行します。`username=` に期待するアカウント名が表示されれば完了です。
-
-```bash
-cd ~/projects/oss/some-repo
-
-git config --get user.email
-printf 'protocol=https\nhost=github.com\n\n' \
-  | git credential fill \
-  | sed -n '/^username=/p'
 ```
 
 ## 4. 運用上の注意
@@ -330,57 +290,74 @@ git config --show-origin --get-all credential.https://github.com.helper
 
 この記事を参照してユーザーの設定作業を代行・支援する場合は、以下の手順に従ってください。
 
-### 5-1. 作業種別の確認
+使用するGitHubアカウントは、すべて GitHub CLI にログイン済みであることを前提とします。ログイン状態はユーザーに尋ねず、AIが `gh auth status` で確認してください。必要なアカウントが未登録の場合は作業を止め、ユーザー自身に `gh auth login --git-protocol https` を実行してもらってください。
 
-作業を始める前に、ユーザーに次のどちらかを確認してください。推測で進めないでください。
+ユーザーへの確認は、ユーザーにしか決められない項目に絞ります。コマンドで調べられることはAIが確認し、その結果をユーザーへの確認時に添えてください。
 
-| 作業種別 | 内容 | 参照する章 |
-|---|---|---|
-| 新規 | この仕組みをまだ導入していない環境に、初めてセットアップする | 1章、2章（2-1〜2-5）、4章 |
-| 追加 | 導入済みの環境に、除外フォルダを追加する | 1章、3章（3-1〜3-3）、4章 |
+### 5-1. 作業種別の判定
 
-判断がつかない場合は、`~/.local/bin/git-gh-credential` の有無と、`~/.gitconfig` に `includeIf` があるかを確認し、その結果をユーザーに提示したうえで判断を仰いでください。
+AIが次のコマンドで導入状況を確認し、作業種別を判定してください。
 
 ```bash
 ls -l ~/.local/bin/git-gh-credential
 git config --global --get-regexp '^includeif\.'
 ```
 
-### 5-2. 「新規」の場合の確認項目
+| 作業種別 | 判定の目安 | 参照する章 |
+|---|---|---|
+| 新規 | `git-gh-credential` がない | 1章、2章、3章、4章 |
+| 追加 | `git-gh-credential` があり、2章の設定が済んでいる | 1章、3章、4章 |
 
-ユーザーに以下を確認してから、2章の手順を順に実施してください。
+判定結果をユーザーに提示し、作業種別に誤りがないか確認してから進めてください。「新規」の場合は、2章を終えたあとに続けて3章で除外フォルダを追加します。
+
+### 5-2. 「新規」の場合
+
+#### ユーザーへの確認項目
 
 | 確認項目 | 用途 | 参照する章 |
 |---|---|---|
-| デフォルトで使うGitHubアカウント名 | `gh auth status` での登録確認 | 2-1 |
-| 除外フォルダで使うGitHubアカウント名 | `git-gh-credential` の引数 | 2-1, 2-4 |
-| 両アカウントが `gh` に登録済みか | 未登録なら `gh auth login` をユーザー自身に実行してもらう | 2-1 |
+| デフォルトで使うGitHubアカウント | デフォルト認証の確認 | 2-1 |
 | デフォルトのコミット作成者名・メールアドレス | `~/.gitconfig` の `[user]` | 2-3 |
-| 除外フォルダのパス | `includeIf "gitdir:..."` | 2-3 |
-| 除外フォルダ用のコミット作成者名・メールアドレス | `~/.gitconfig-work` の `[user]` | 2-4 |
-| 既存の `~/.gitconfig` のCredential Helper設定 | 既存設定と競合しないか | 2-3 |
-| `GH_TOKEN` / `GITHUB_TOKEN` が設定されていないか | 意図しないトークンが使われないか | 4-2 |
 
-完了条件：2-5の確認で、除外フォルダ配下の `username=` が期待するアカウント名になっていること。
+アカウントは `gh auth status` に表示された一覧から選んでもらってください。コミット作成者は、既存の `~/.gitconfig` に設定があればその値を提示し、そのまま使うか確認してください。除外フォルダの情報は、2章を終えたあとに 5-3 の手順で確認します。
 
-### 5-3. 「追加」の場合の確認項目
+#### AIの確認項目
 
-まず、追加するフォルダで使うアカウントが既存の設定ファイル（例：`~/.gitconfig-work`）と同じか、新しいアカウントかを確認し、3-1と3-2のどちらで進めるかを決めてください。
+| 確認項目 | 確認方法 | 参照する章 |
+|---|---|---|
+| アカウントが `gh` にログイン済みか | `gh auth status` | 2-1 |
+| 既存のコミット作成者 | `git config --global --get user.name` / `git config --global --get user.email` | 2-3 |
+| 既存のCredential Helper設定 | `git config --global --show-origin --get-all credential.helper` / `git config --global --show-origin --get-all credential.https://github.com.helper` | 2-3 |
+| `GH_TOKEN` / `GITHUB_TOKEN` が設定されていないか | `printenv GH_TOKEN >/dev/null && echo set` / `printenv GITHUB_TOKEN >/dev/null && echo set` | 4-2 |
+
+完了条件：2-4の確認で、デフォルトのコミット作成者とCredential Helperが適用されていること。
+
+### 5-3. 「追加」の場合
+
+#### ユーザーへの確認項目
 
 | 確認項目 | 用途 | 参照する章 |
 |---|---|---|
-| 追加するフォルダのパス | `includeIf "gitdir:..."`（末尾は `/`） | 3-1, 3-2 |
-| 既存アカウントか新規アカウントか | 3-1と3-2のどちらで進めるか | 3-1, 3-2 |
-| （既存アカウントの場合）流用する設定ファイル名 | `includeIf` の `path` | 3-1 |
-| （新規アカウントの場合）GitHubアカウント名 | `gh auth token --user` と `git-gh-credential` の引数 | 3-2 |
-| （新規アカウントの場合）アカウントが `gh` に登録済みか | 未登録なら `gh auth login` をユーザー自身に実行してもらう | 3-2 |
-| （新規アカウントの場合）コミット作成者名・メールアドレス | 新しい設定ファイルの `[user]` | 3-2 |
-| 既存の `includeIf` とパスが重複していないか | 意図しない設定の上書きを防ぐ | 3-1, 3-2 |
+| 追加するフォルダのパス | `includeIf "gitdir:..."`（末尾は `/`） | 3-2 |
+| そのフォルダで使うGitHubアカウント | 既存の設定ファイルを流用するか、3-1で新しく作るか | 3-1, 3-2 |
+| （新しいアカウントの場合）コミット作成者名・メールアドレス | 新しい設定ファイルの `[user]` | 3-1 |
+
+アカウントは `gh auth status` の一覧と、既存の設定ファイルが使っているアカウントを添えて選んでもらってください。
+
+#### AIの確認項目
+
+| 確認項目 | 確認方法 | 参照する章 |
+|---|---|---|
+| 使用するアカウントが `gh` にログイン済みか | `gh auth status` / `gh auth token --hostname github.com --user <アカウント> > /dev/null` | 3-1 |
+| 既存の設定ファイルと、それぞれが使うアカウント | `git config --global --get-regexp '^includeif\.'` で `path` を一覧し、各ファイルの `helper` 行の引数を確認 | 3-1 |
+| 既存の `includeIf` とパスが重複していないか | `git config --global --get-regexp '^includeif\.'` | 3-2 |
+| 追加するフォルダが存在するか | `ls -d <フォルダのパス>` | 3-2 |
+| `GH_TOKEN` / `GITHUB_TOKEN` が設定されていないか | `printenv GH_TOKEN >/dev/null && echo set` / `printenv GITHUB_TOKEN >/dev/null && echo set` | 4-2 |
 
 完了条件：3-3の確認で、追加したフォルダ配下の `username=` が期待するアカウント名になっていること。
 
 ### 5-4. 共通の注意
 
-- トークンの値を画面やログに出力しないでください。確認には2-5の `sed -n '/^username=/p'` のように `username` 行だけを表示する方法を使ってください。
+- トークンの値を画面やログに出力しないでください。確認には3-3の `sed -n '/^username=/p'` のように `username` 行だけを表示する方法を使ってください。
 - `gh auth login` はブラウザ認証を伴うため、ユーザー自身に実行してもらってください。
 - `~/.gitconfig` を編集する前に、現在の内容をユーザーに提示し、変更点を説明してから反映してください。
